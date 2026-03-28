@@ -32,7 +32,7 @@ model Task {
   category    String?
   frequency   Frequency @default(DAILY)
   userId      String
-  user        User     @relation(fields: [userId], references: [id])
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   completions TaskCompletion[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -42,6 +42,6 @@ model TaskCompletion {
   id          String   @id @default(uuid())
   completedAt DateTime @default(now())
   taskId      String
-  task        Task     @relation(fields: [taskId], references: [id])
+  task        Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
   @@unique([taskId, completedAt])
 }
