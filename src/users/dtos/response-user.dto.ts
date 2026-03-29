@@ -5,3 +5,12 @@ export class ResponseCreateUserDto {
   createdAt: Date;
   updatedAt: Date;
 }
+
+export class ResponseUpdateAvatarDto {
+  id: string;
+  email: string;
+  fullName: string | null;
+  avatar: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}

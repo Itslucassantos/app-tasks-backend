@@ -2,9 +2,15 @@ import { HttpException, HttpStatus } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { HashingServiceProtocol } from 'src/auth/hash/hashing.service';
+import { writeFile } from 'node:fs/promises';
+
+jest.mock('node:fs/promises', () => ({
+  writeFile: jest.fn(),
+}));
 
 describe('UsersService', () => {
   let service: UsersService;
+  let writeFileMock: jest.MockedFunction<typeof writeFile>;
   let prismaMock: {
     user: {
       create: jest.Mock;
@@ -33,6 +39,9 @@ describe('UsersService', () => {
   };
 
   beforeEach(() => {
+    writeFileMock = writeFile as jest.MockedFunction<typeof writeFile>;
+    writeFileMock.mockReset();
+
     prismaMock = {
       user: {
         create: jest.fn(),
@@ -51,6 +60,10 @@ describe('UsersService', () => {
       prismaMock as unknown as PrismaService,
       hashingServiceMock as unknown as HashingServiceProtocol,
     );
+  });
+
+  afterEach(() => {
+    jest.clearAllMocks();
   });
 
   it('should be defined', () => {
@@ -278,6 +291,90 @@ describe('UsersService', () => {
         service.delete('user-1', tokenPayload),
       ).rejects.toMatchObject({
         message: 'Failed to delete user',
+        status: HttpStatus.BAD_REQUEST,
+      });
+    });
+  });
+
+  describe('uploadAvatar', () => {
+    const tokenPayload = { sub: 'user-1' };
+    const file = {
+      originalname: 'avatar.PNG',
+      buffer: Buffer.from('avatar-content'),
+    } as Express.Multer.File;
+
+    it('should write file and update user avatar successfully', async () => {
+      writeFileMock.mockResolvedValue(undefined);
+      prismaMock.user.findFirst.mockResolvedValue({ id: 'user-1' });
+
+      const avatarResponse = {
+        id: 'user-1',
+        fullName: 'John Doe',
+        email: 'john@doe.com',
+        avatar: 'user-1.png',
+        createdAt: new Date('2026-01-01T00:00:00.000Z'),
+        updatedAt: new Date('2026-01-02T00:00:00.000Z'),
+      };
+
+      prismaMock.user.update.mockResolvedValue(avatarResponse);
+
+      const result = await service.uploadAvatar(tokenPayload, file);
+
+      expect(writeFileMock).toHaveBeenCalledWith(
+        expect.stringContaining('files'),
+        file.buffer,
+      );
+      expect(prismaMock.user.findFirst).toHaveBeenCalledWith({
+        where: { id: tokenPayload.sub },
+      });
+      expect(prismaMock.user.update).toHaveBeenCalledWith({
+        where: { id: 'user-1' },
+        data: {
+          avatar: 'user-1.png',
+          updatedAt: expect.any(Date),
+        },
+        select: {
+          id: true,
+          fullName: true,
+          email: true,
+          avatar: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      });
+      expect(result).toEqual(avatarResponse);
+    });
+
+    it('should throw not found when user does not exist', async () => {
+      writeFileMock.mockResolvedValue(undefined);
+      prismaMock.user.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.uploadAvatar(tokenPayload, file),
+      ).rejects.toMatchObject({
+        message: 'User not found',
+        status: HttpStatus.NOT_FOUND,
+      });
+
+      expect(prismaMock.user.update).not.toHaveBeenCalled();
+    });
+
+    it('should rethrow HttpException errors', async () => {
+      const exception = new HttpException('blocked', HttpStatus.FORBIDDEN);
+      writeFileMock.mockRejectedValue(exception);
+
+      await expect(service.uploadAvatar(tokenPayload, file)).rejects.toThrow(
+        exception,
+      );
+    });
+
+    it('should throw bad request on unexpected errors', async () => {
+      writeFileMock.mockRejectedValue(new Error('unexpected'));
+
+      await expect(
+        service.uploadAvatar(tokenPayload, file),
+      ).rejects.toMatchObject({
+        message: 'Failed to update user avatar',
         status: HttpStatus.BAD_REQUEST,
       });
     });

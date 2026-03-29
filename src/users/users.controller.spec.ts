@@ -12,6 +12,7 @@ describe('UsersController', () => {
     update: jest.Mock;
     findOne: jest.Mock;
     delete: jest.Mock;
+    uploadAvatar: jest.Mock;
   };
 
   const tokenPayload: PayloadTokenDto = {
@@ -36,6 +37,7 @@ describe('UsersController', () => {
       update: jest.fn(),
       findOne: jest.fn(),
       delete: jest.fn(),
+      uploadAvatar: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -53,6 +55,10 @@ describe('UsersController', () => {
       .compile();
 
     controller = module.get<UsersController>(UsersController);
+  });
+
+  afterEach(() => {
+    jest.clearAllMocks();
   });
 
   it('should be defined', () => {
@@ -119,6 +125,34 @@ describe('UsersController', () => {
         tokenPayload,
       );
       expect(result).toEqual({ message: 'User deleted successfully' });
+    });
+  });
+
+  describe('uploadAvatar', () => {
+    it('should call service.uploadAvatar and return result', async () => {
+      const file = {
+        originalname: 'avatar.png',
+        buffer: Buffer.from('avatar-content'),
+      } as Express.Multer.File;
+
+      const avatarResponse = {
+        id: 'user-1',
+        fullName: 'John Doe',
+        email: 'john@doe.com',
+        avatar: 'user-1.png',
+        createdAt: new Date('2026-01-01T00:00:00.000Z'),
+        updatedAt: new Date('2026-01-02T00:00:00.000Z'),
+      };
+
+      usersServiceMock.uploadAvatar.mockResolvedValue(avatarResponse);
+
+      const result = await controller.uploadAvatar(tokenPayload, file);
+
+      expect(usersServiceMock.uploadAvatar).toHaveBeenCalledWith(
+        tokenPayload,
+        file,
+      );
+      expect(result).toEqual(avatarResponse);
     });
   });
 });
