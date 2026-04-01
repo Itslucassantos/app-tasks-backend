@@ -6,6 +6,11 @@ export class ResponseCreateUserDto {
   updatedAt: Date;
 }
 
+export class ResponseUserStreakDto {
+  streak: number;
+  lastStreakAt: Date | null;
+}
+
 export class ResponseUpdateAvatarDto {
   id: string;
   email: string;

@@ -4,6 +4,7 @@ import { CreateUserDto } from './dtos/create-user.dto';
 import { HashingServiceProtocol } from 'src/auth/hash/hashing.service';
 import {
   ResponseCreateUserDto,
+  ResponseUserStreakDto,
   ResponseUpdateAvatarDto,
 } from './dtos/response-user.dto';
 import { UpdateUserDto } from './dtos/update-user.dto';
@@ -16,6 +17,19 @@ export class UsersService {
     private prisma: PrismaService,
     private readonly hashingService: HashingServiceProtocol,
   ) {}
+
+  private getDayStart(referenceDate = new Date()): Date {
+    const dayStart = new Date(referenceDate);
+    dayStart.setHours(0, 0, 0, 0);
+    return dayStart;
+  }
+
+  private isSameDay(firstDate: Date, secondDate: Date): boolean {
+    return (
+      this.getDayStart(firstDate).getTime() ===
+      this.getDayStart(secondDate).getTime()
+    );
+  }
 
   async create(createUserDto: CreateUserDto): Promise<ResponseCreateUserDto> {
     try {
@@ -212,6 +226,72 @@ export class UsersService {
 
       throw new HttpException(
         'Failed to update user avatar',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
+  async streak(
+    id: string,
+    tokenPayload: { sub: string },
+  ): Promise<ResponseUserStreakDto> {
+    try {
+      const user = await this.prisma.user.findFirst({
+        where: {
+          id: id,
+        },
+        select: {
+          streak: true,
+          lastStreakAt: true,
+        },
+      });
+
+      if (!user) {
+        throw new HttpException('User not found', HttpStatus.NOT_FOUND);
+      }
+
+      if (id !== tokenPayload.sub) {
+        throw new HttpException('Unauthorized', HttpStatus.UNAUTHORIZED);
+      }
+
+      if (!user.lastStreakAt) {
+        return {
+          streak: 0,
+          lastStreakAt: null,
+        };
+      }
+
+      const todayStart = this.getDayStart(new Date());
+      const yesterdayStart = new Date(todayStart);
+      yesterdayStart.setDate(yesterdayStart.getDate() - 1);
+
+      if (
+        this.isSameDay(user.lastStreakAt, todayStart) ||
+        this.isSameDay(user.lastStreakAt, yesterdayStart)
+      ) {
+        return user;
+      }
+
+      await this.prisma.user.update({
+        where: {
+          id: id,
+        },
+        data: {
+          streak: 0,
+        },
+      });
+
+      return {
+        streak: 0,
+        lastStreakAt: user.lastStreakAt,
+      };
+    } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+
+      throw new HttpException(
+        'Failed to retrieve user streak',
         HttpStatus.BAD_REQUEST,
       );
     }

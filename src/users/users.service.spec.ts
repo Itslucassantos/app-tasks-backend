@@ -379,4 +379,106 @@ describe('UsersService', () => {
       });
     });
   });
+
+  describe('streak', () => {
+    const tokenPayload = { sub: 'user-1' };
+
+    it('should return current streak when last streak was today or yesterday', async () => {
+      prismaMock.user.findFirst.mockResolvedValue({
+        streak: 4,
+        lastStreakAt: new Date(),
+      });
+
+      const result = await service.streak('user-1', tokenPayload);
+
+      expect(prismaMock.user.findFirst).toHaveBeenCalledWith({
+        where: { id: 'user-1' },
+        select: {
+          streak: true,
+          lastStreakAt: true,
+        },
+      });
+      expect(result).toEqual({
+        streak: 4,
+        lastStreakAt: expect.any(Date),
+      });
+      expect(prismaMock.user.update).not.toHaveBeenCalled();
+    });
+
+    it('should return zero streak when user has never completed all due tasks', async () => {
+      prismaMock.user.findFirst.mockResolvedValue({
+        streak: 0,
+        lastStreakAt: null,
+      });
+
+      const result = await service.streak('user-1', tokenPayload);
+
+      expect(result).toEqual({
+        streak: 0,
+        lastStreakAt: null,
+      });
+      expect(prismaMock.user.update).not.toHaveBeenCalled();
+    });
+
+    it('should reset stale streak when the user broke the sequence', async () => {
+      prismaMock.user.findFirst.mockResolvedValue({
+        streak: 3,
+        lastStreakAt: new Date('2026-03-25T10:00:00.000Z'),
+      });
+      prismaMock.user.update.mockResolvedValue({
+        streak: 0,
+        lastStreakAt: new Date('2026-03-25T10:00:00.000Z'),
+      });
+
+      const result = await service.streak('user-1', tokenPayload);
+
+      expect(prismaMock.user.update).toHaveBeenCalledWith({
+        where: { id: 'user-1' },
+        data: {
+          streak: 0,
+        },
+      });
+      expect(result).toEqual({
+        streak: 0,
+        lastStreakAt: new Date('2026-03-25T10:00:00.000Z'),
+      });
+    });
+
+    it('should throw unauthorized when token user does not match target user', async () => {
+      prismaMock.user.findFirst.mockResolvedValue({
+        streak: 2,
+        lastStreakAt: new Date(),
+      });
+
+      await expect(
+        service.streak('user-2', tokenPayload),
+      ).rejects.toMatchObject({
+        message: 'Unauthorized',
+        status: HttpStatus.UNAUTHORIZED,
+      });
+      expect(prismaMock.user.update).not.toHaveBeenCalled();
+    });
+
+    it('should throw not found when user does not exist', async () => {
+      prismaMock.user.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.streak('user-1', tokenPayload),
+      ).rejects.toMatchObject({
+        message: 'User not found',
+        status: HttpStatus.NOT_FOUND,
+      });
+    });
+
+    it('should throw bad request on unexpected errors', async () => {
+      prismaMock.user.findFirst.mockRejectedValue(new Error('unexpected'));
+
+      await expect(
+        service.streak('user-1', tokenPayload),
+      ).rejects.toMatchObject({
+        message: 'Failed to retrieve user streak',
+        status: HttpStatus.BAD_REQUEST,
+      });
+    });
+  });
 });

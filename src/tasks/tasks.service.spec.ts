@@ -8,7 +8,7 @@ import { TaskStatusFilter } from './dtos/find-tasks-query.dto';
 describe('TasksService', () => {
   let service: TasksService;
   let prisma: {
-    user: { findFirst: jest.Mock };
+    user: { findFirst: jest.Mock; update: jest.Mock };
     task: {
       findFirst: jest.Mock;
       findMany: jest.Mock;
@@ -23,7 +23,7 @@ describe('TasksService', () => {
   };
 
   const tokenPayload = { sub: 'user-1' };
-  const user = { id: 'user-1' };
+  const user = { id: 'user-1', streak: 0, lastStreakAt: null };
   const task = {
     id: 'task-1',
     title: 'Task',
@@ -36,7 +36,7 @@ describe('TasksService', () => {
 
   beforeEach(async () => {
     prisma = {
-      user: { findFirst: jest.fn() },
+      user: { findFirst: jest.fn(), update: jest.fn() },
       task: {
         findFirst: jest.fn(),
         findMany: jest.fn(),
@@ -454,6 +454,12 @@ describe('TasksService', () => {
     prisma.user.findFirst.mockResolvedValue(user);
     prisma.task.findFirst.mockResolvedValue(task);
     prisma.taskCompletion.findFirst.mockResolvedValue(null);
+    prisma.task.findMany.mockResolvedValue([]);
+    prisma.user.update.mockResolvedValue({
+      ...user,
+      streak: 1,
+      lastStreakAt: new Date('2026-03-31T00:00:00.000Z'),
+    });
     prisma.taskCompletion.create.mockResolvedValue({
       id: 'completion-1',
       taskId: task.id,
@@ -475,7 +481,32 @@ describe('TasksService', () => {
         taskId: task.id,
       },
     });
+    expect(prisma.user.update).toHaveBeenCalledWith({
+      where: {
+        id: user.id,
+      },
+      data: {
+        streak: 1,
+        lastStreakAt: expect.any(Date),
+      },
+    });
     expect(result).toEqual(task);
+  });
+
+  it('should not update streak when there are still due tasks', async () => {
+    prisma.user.findFirst.mockResolvedValue(user);
+    prisma.task.findFirst.mockResolvedValue(task);
+    prisma.taskCompletion.findFirst.mockResolvedValue(null);
+    prisma.task.findMany.mockResolvedValue([task]);
+    prisma.taskCompletion.create.mockResolvedValue({
+      id: 'completion-1',
+      taskId: task.id,
+      completedAt: new Date('2026-03-31T12:00:00.000Z'),
+    });
+
+    await service.complete({ id: task.id }, tokenPayload);
+
+    expect(prisma.user.update).not.toHaveBeenCalled();
   });
 
   it('should throw conflict when task already completed in current period', async () => {
@@ -525,6 +556,7 @@ describe('TasksService', () => {
     prisma.user.findFirst.mockResolvedValue(user);
     prisma.task.findFirst.mockResolvedValue(task);
     prisma.taskCompletion.findFirst.mockResolvedValue(null);
+    prisma.task.findMany.mockResolvedValue([]);
     prisma.taskCompletion.create.mockRejectedValue(new Error('db error'));
 
     await expect(

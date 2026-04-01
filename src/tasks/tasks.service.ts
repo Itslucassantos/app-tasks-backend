@@ -16,6 +16,63 @@ import {
 export class TasksService {
   constructor(private prisma: PrismaService) {}
 
+  private getDayStart(referenceDate = new Date()): Date {
+    const dayStart = new Date(referenceDate);
+    dayStart.setHours(0, 0, 0, 0);
+    return dayStart;
+  }
+
+  private isSameDay(firstDate: Date, secondDate: Date): boolean {
+    return (
+      this.getDayStart(firstDate).getTime() ===
+      this.getDayStart(secondDate).getTime()
+    );
+  }
+
+  private async updateUserStreakIfEligible(
+    user: { id: string; streak?: number; lastStreakAt?: Date | null },
+    referenceDate = new Date(),
+  ): Promise<void> {
+    const remainingDueTasks = await this.prisma.task.findMany({
+      where: this.getFilteredTasksWhere(
+        user.id,
+        {
+          status: TaskStatusFilter.DUE,
+        },
+        referenceDate,
+      ),
+      take: 1,
+    });
+
+    if (remainingDueTasks.length > 0) {
+      return;
+    }
+
+    const todayStart = this.getDayStart(referenceDate);
+
+    if (user.lastStreakAt && this.isSameDay(user.lastStreakAt, todayStart)) {
+      return;
+    }
+
+    const yesterdayStart = new Date(todayStart);
+    yesterdayStart.setDate(yesterdayStart.getDate() - 1);
+
+    const nextStreak =
+      user.lastStreakAt && this.isSameDay(user.lastStreakAt, yesterdayStart)
+        ? (user.streak ?? 0) + 1
+        : 1;
+
+    await this.prisma.user.update({
+      where: {
+        id: user.id,
+      },
+      data: {
+        streak: nextStreak,
+        lastStreakAt: todayStart,
+      },
+    });
+  }
+
   private getPeriodStart(
     frequency: Frequency,
     referenceDate = new Date(),
@@ -441,6 +498,8 @@ export class TasksService {
           taskId: task.id,
         },
       });
+
+      await this.updateUserStreakIfEligible(user, new Date());
 
       return task;
     } catch (error) {

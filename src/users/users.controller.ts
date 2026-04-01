@@ -101,4 +101,15 @@ export class UsersController {
   ) {
     return this.usersService.uploadAvatar(tokenPayload, file);
   }
+
+  @UseGuards(AuthTokenGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get user streak' })
+  @Get('streak/:id')
+  streakUser(
+    @Param('id') id: string,
+    @TokenPayloadParam() tokenPayload: PayloadTokenDto,
+  ) {
+    return this.usersService.streak(id, tokenPayload);
+  }
 }
