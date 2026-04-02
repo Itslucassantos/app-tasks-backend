@@ -2,7 +2,8 @@
 /dist
 /node_modules
 /build
-/files/**
+/files/*
+!/files/README.md
 
 # Logs
 logs
