@@ -19,10 +19,6 @@ describe('Tasks (e2e)', () => {
   });
 
   beforeEach(async () => {
-    execSync(
-      'cross-env DATABASE_URL=postgresql://postgres:itslucassantos@localhost:5432/tasks_test?schema=public npx prisma migrate deploy',
-    );
-
     const module: TestingModule = await Test.createTestingModule({
       imports: [
         ConfigModule.forRoot({

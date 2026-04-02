@@ -1,0 +1,35 @@
+services:
+  db_test:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: tasks_test
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d tasks_test']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  unit:
+    build:
+      context: .
+      target: test
+    command: npm test
+
+  e2e:
+    build:
+      context: .
+      target: test
+    command: >
+      sh -c "npx prisma migrate deploy &&
+             npx jest --config ./test/jest-e2e.json --runInBand"
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db_test:5432/tasks_test?schema=public
+      JWT_SECRET: test_secret
+      JWT_TOKEN_AUDIENCE: test_audience
+      JWT_TOKEN_ISSUER: test_issuer
+      JWT_TTL: 3600s
+    depends_on:
+      db_test:
+        condition: service_healthy
