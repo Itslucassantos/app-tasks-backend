@@ -60,6 +60,8 @@ export class AuthService {
       id: user.id,
       fullname: user.fullName,
       email: user.email,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
       token: token,
     };
   }
