@@ -135,7 +135,7 @@ export class TasksController {
 
   @UseGuards(AuthTokenGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Complete a task by ID' })
+  @ApiOperation({ summary: 'Toggle task completion by ID' })
   @Post('complete')
   completeTask(
     @Body() completeTaskDto: CompleteTaskDto,

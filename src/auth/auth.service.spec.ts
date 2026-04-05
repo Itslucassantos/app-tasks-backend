@@ -19,6 +19,8 @@ describe('AuthService', () => {
     email: 'john@doe.com',
     password: 'hashed-password',
     fullName: 'John Doe',
+    createdAt: new Date('2026-01-01T00:00:00.000Z'),
+    updatedAt: new Date('2026-01-01T00:00:00.000Z'),
   };
 
   beforeEach(() => {
@@ -74,8 +76,10 @@ describe('AuthService', () => {
       );
       expect(result).toEqual({
         id: dbUser.id,
-        fullname: dbUser.fullName,
+        fullName: dbUser.fullName,
         email: dbUser.email,
+        createdAt: dbUser.createdAt,
+        updatedAt: dbUser.updatedAt,
         token: 'jwt-token',
       });
     });

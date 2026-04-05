@@ -73,6 +73,42 @@ export class TasksService {
     });
   }
 
+  private async downgradeUserStreakIfNeeded(
+    user: { id: string; streak?: number; lastStreakAt?: Date | null },
+    referenceDate = new Date(),
+  ): Promise<void> {
+    const todayStart = this.getDayStart(referenceDate);
+
+    if (!user.lastStreakAt || !this.isSameDay(user.lastStreakAt, todayStart)) {
+      return;
+    }
+
+    const dueTasks = await this.prisma.task.findMany({
+      where: this.getFilteredTasksWhere(
+        user.id,
+        { status: TaskStatusFilter.DUE },
+        referenceDate,
+      ),
+      take: 1,
+    });
+
+    if (dueTasks.length === 0) {
+      return;
+    }
+
+    const newStreak = Math.max(0, (user.streak ?? 0) - 1);
+    const yesterdayStart = new Date(todayStart);
+    yesterdayStart.setDate(yesterdayStart.getDate() - 1);
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        streak: newStreak,
+        lastStreakAt: newStreak === 0 ? null : yesterdayStart,
+      },
+    });
+  }
+
   private getPeriodStart(
     frequency: Frequency,
     referenceDate = new Date(),
@@ -487,10 +523,17 @@ export class TasksService {
         });
 
       if (completionInCurrentPeriod) {
-        throw new HttpException(
-          'Task already completed in the current period',
-          HttpStatus.CONFLICT,
-        );
+        await this.prisma.taskCompletion.delete({
+          where: {
+            id: completionInCurrentPeriod.id,
+          },
+        });
+        const updatedTask = await this.prisma.task.update({
+          where: { id: task.id },
+          data: { completed: false },
+        });
+        await this.downgradeUserStreakIfNeeded(user, new Date());
+        return updatedTask;
       }
 
       await this.prisma.taskCompletion.create({
@@ -499,16 +542,21 @@ export class TasksService {
         },
       });
 
+      const updatedTask = await this.prisma.task.update({
+        where: { id: task.id },
+        data: { completed: true },
+      });
+
       await this.updateUserStreakIfEligible(user, new Date());
 
-      return task;
+      return updatedTask;
     } catch (error) {
       if (error instanceof HttpException) {
         throw error;
       }
 
       throw new HttpException(
-        'Failed to complete task',
+        'Failed to toggle task completion',
         HttpStatus.BAD_REQUEST,
       );
     }

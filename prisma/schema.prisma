@@ -32,6 +32,7 @@ model Task {
   title       String
   category    String?
   frequency   Frequency @default(DAILY)
+  completed   Boolean  @default(false)
   userId      String
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   completions TaskCompletion[]

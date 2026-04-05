@@ -19,6 +19,7 @@ describe('TasksService', () => {
     taskCompletion: {
       findFirst: jest.Mock;
       create: jest.Mock;
+      delete: jest.Mock;
     };
   };
 
@@ -29,6 +30,7 @@ describe('TasksService', () => {
     title: 'Task',
     category: null,
     frequency: Frequency.DAILY,
+    completed: false,
     userId: 'user-1',
     createdAt: new Date('2026-03-01T10:00:00.000Z'),
     updatedAt: new Date('2026-03-01T10:00:00.000Z'),
@@ -47,6 +49,7 @@ describe('TasksService', () => {
       taskCompletion: {
         findFirst: jest.fn(),
         create: jest.fn(),
+        delete: jest.fn(),
       },
     };
 
@@ -465,6 +468,7 @@ describe('TasksService', () => {
       taskId: task.id,
       completedAt: new Date('2026-03-31T12:00:00.000Z'),
     });
+    prisma.task.update.mockResolvedValue({ ...task, completed: true });
 
     const result = await service.complete({ id: task.id }, tokenPayload);
 
@@ -481,6 +485,10 @@ describe('TasksService', () => {
         taskId: task.id,
       },
     });
+    expect(prisma.task.update).toHaveBeenCalledWith({
+      where: { id: task.id },
+      data: { completed: true },
+    });
     expect(prisma.user.update).toHaveBeenCalledWith({
       where: {
         id: user.id,
@@ -490,7 +498,7 @@ describe('TasksService', () => {
         lastStreakAt: expect.any(Date),
       },
     });
-    expect(result).toEqual(task);
+    expect(result).toEqual({ ...task, completed: true });
   });
 
   it('should not update streak when there are still due tasks', async () => {
@@ -503,30 +511,109 @@ describe('TasksService', () => {
       taskId: task.id,
       completedAt: new Date('2026-03-31T12:00:00.000Z'),
     });
+    prisma.task.update.mockResolvedValue({ ...task, completed: true });
 
     await service.complete({ id: task.id }, tokenPayload);
 
     expect(prisma.user.update).not.toHaveBeenCalled();
   });
 
-  it('should throw conflict when task already completed in current period', async () => {
-    prisma.user.findFirst.mockResolvedValue(user);
-    prisma.task.findFirst.mockResolvedValue(task);
-    prisma.taskCompletion.findFirst.mockResolvedValue({
+  it('should uncomplete task when already completed in current period', async () => {
+    const completion = {
       id: 'completion-1',
       taskId: task.id,
       completedAt: new Date('2026-03-31T12:00:00.000Z'),
-    });
+    };
+    prisma.user.findFirst.mockResolvedValue(user);
+    prisma.task.findFirst.mockResolvedValue(task);
+    prisma.taskCompletion.findFirst.mockResolvedValue(completion);
+    prisma.taskCompletion.delete.mockResolvedValue(completion);
+    prisma.task.update.mockResolvedValue({ ...task, completed: false });
 
-    await expect(
-      service.complete({ id: task.id }, tokenPayload),
-    ).rejects.toThrow(
-      new HttpException(
-        'Task already completed in the current period',
-        HttpStatus.CONFLICT,
-      ),
-    );
+    const result = await service.complete({ id: task.id }, tokenPayload);
+
+    expect(prisma.taskCompletion.delete).toHaveBeenCalledWith({
+      where: { id: completion.id },
+    });
+    expect(prisma.task.update).toHaveBeenCalledWith({
+      where: { id: task.id },
+      data: { completed: false },
+    });
     expect(prisma.taskCompletion.create).not.toHaveBeenCalled();
+    expect(prisma.user.update).not.toHaveBeenCalled();
+    expect(result).toEqual({ ...task, completed: false });
+  });
+
+  it('should downgrade streak when uncompleting and streak was earned today', async () => {
+    const userWithStreak = {
+      id: 'user-1',
+      streak: 1,
+      lastStreakAt: new Date(),
+    };
+    const completion = {
+      id: 'completion-1',
+      taskId: task.id,
+      completedAt: new Date(),
+    };
+    prisma.user.findFirst.mockResolvedValue(userWithStreak);
+    prisma.task.findFirst.mockResolvedValue(task);
+    prisma.taskCompletion.findFirst.mockResolvedValue(completion);
+    prisma.taskCompletion.delete.mockResolvedValue(completion);
+    prisma.task.update.mockResolvedValue({ ...task, completed: false });
+    prisma.task.findMany.mockResolvedValue([task]);
+
+    await service.complete({ id: task.id }, tokenPayload);
+
+    expect(prisma.user.update).toHaveBeenCalledWith({
+      where: { id: userWithStreak.id },
+      data: { streak: 0, lastStreakAt: null },
+    });
+  });
+
+  it('should not downgrade streak when uncompleting and no due tasks remain', async () => {
+    const userWithStreak = {
+      id: 'user-1',
+      streak: 1,
+      lastStreakAt: new Date(),
+    };
+    const completion = {
+      id: 'completion-1',
+      taskId: task.id,
+      completedAt: new Date(),
+    };
+    prisma.user.findFirst.mockResolvedValue(userWithStreak);
+    prisma.task.findFirst.mockResolvedValue(task);
+    prisma.taskCompletion.findFirst.mockResolvedValue(completion);
+    prisma.taskCompletion.delete.mockResolvedValue(completion);
+    prisma.task.update.mockResolvedValue({ ...task, completed: false });
+    prisma.task.findMany.mockResolvedValue([]);
+
+    await service.complete({ id: task.id }, tokenPayload);
+
+    expect(prisma.user.update).not.toHaveBeenCalled();
+  });
+
+  it('should not downgrade streak when uncompleting and streak was not earned today', async () => {
+    const userWithStreak = {
+      id: 'user-1',
+      streak: 1,
+      lastStreakAt: new Date('2026-04-04T00:00:00.000Z'),
+    };
+    const completion = {
+      id: 'completion-1',
+      taskId: task.id,
+      completedAt: new Date(),
+    };
+    prisma.user.findFirst.mockResolvedValue(userWithStreak);
+    prisma.task.findFirst.mockResolvedValue(task);
+    prisma.taskCompletion.findFirst.mockResolvedValue(completion);
+    prisma.taskCompletion.delete.mockResolvedValue(completion);
+    prisma.task.update.mockResolvedValue({ ...task, completed: false });
+
+    await service.complete({ id: task.id }, tokenPayload);
+
+    expect(prisma.task.findMany).not.toHaveBeenCalled();
+    expect(prisma.user.update).not.toHaveBeenCalled();
   });
 
   it('should throw not found when completing task for missing user', async () => {
@@ -562,7 +649,10 @@ describe('TasksService', () => {
     await expect(
       service.complete({ id: task.id }, tokenPayload),
     ).rejects.toThrow(
-      new HttpException('Failed to complete task', HttpStatus.BAD_REQUEST),
+      new HttpException(
+        'Failed to toggle task completion',
+        HttpStatus.BAD_REQUEST,
+      ),
     );
   });
 });
