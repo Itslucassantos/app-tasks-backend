@@ -109,6 +109,22 @@ export class TasksService {
     });
   }
 
+  private getYearStart(referenceDate = new Date()): Date {
+    const yearStart = new Date(referenceDate);
+    yearStart.setMonth(0, 1);
+    yearStart.setHours(0, 0, 0, 0);
+    return yearStart;
+  }
+
+  private computeCompleted(
+    frequency: Frequency,
+    completions: { completedAt: Date }[],
+    referenceDate = new Date(),
+  ): boolean {
+    const periodStart = this.getPeriodStart(frequency, referenceDate);
+    return completions.some((c) => c.completedAt >= periodStart);
+  }
+
   private getPeriodStart(
     frequency: Frequency,
     referenceDate = new Date(),
@@ -381,13 +397,22 @@ export class TasksService {
           id: taskId,
           userId: user.id,
         },
+        include: {
+          completions: {
+            where: { completedAt: { gte: this.getYearStart() } },
+          },
+        },
       });
 
       if (!task) {
         throw new HttpException('Task not found', HttpStatus.NOT_FOUND);
       }
 
-      return task;
+      const { completions, ...taskData } = task;
+      return {
+        ...taskData,
+        completed: this.computeCompleted(task.frequency, completions),
+      };
     } catch (error) {
       if (error instanceof HttpException) {
         throw error;
@@ -427,6 +452,11 @@ export class TasksService {
           },
           new Date(),
         ),
+        include: {
+          completions: {
+            where: { completedAt: { gte: this.getYearStart() } },
+          },
+        },
         skip: offset,
         take: limit,
         orderBy: {
@@ -434,7 +464,10 @@ export class TasksService {
         },
       });
 
-      return tasks;
+      return tasks.map(({ completions, ...task }) => ({
+        ...task,
+        completed: this.computeCompleted(task.frequency, completions),
+      }));
     } catch (error) {
       if (error instanceof HttpException) {
         throw error;
@@ -468,6 +501,11 @@ export class TasksService {
 
       const tasks = await this.prisma.task.findMany({
         where: this.getFilteredTasksWhere(user.id, findTasksQueryDto ?? {}),
+        include: {
+          completions: {
+            where: { completedAt: { gte: this.getYearStart() } },
+          },
+        },
         skip: offset,
         take: limit,
         orderBy: {
@@ -475,7 +513,10 @@ export class TasksService {
         },
       });
 
-      return tasks;
+      return tasks.map(({ completions, ...task }) => ({
+        ...task,
+        completed: this.computeCompleted(task.frequency, completions),
+      }));
     } catch (error) {
       if (error instanceof HttpException) {
         throw error;

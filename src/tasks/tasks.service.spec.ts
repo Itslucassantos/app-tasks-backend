@@ -244,7 +244,7 @@ describe('TasksService', () => {
 
   it('should return due tasks in findDue with pagination', async () => {
     prisma.user.findFirst.mockResolvedValue(user);
-    prisma.task.findMany.mockResolvedValue([task]);
+    prisma.task.findMany.mockResolvedValue([{ ...task, completions: [] }]);
 
     const nowSpy = jest
       .spyOn(Date, 'now')
@@ -310,7 +310,7 @@ describe('TasksService', () => {
 
   it('should return all tasks in findAll with frequency, status and search query', async () => {
     prisma.user.findFirst.mockResolvedValue(user);
-    prisma.task.findMany.mockResolvedValue([task]);
+    prisma.task.findMany.mockResolvedValue([{ ...task, completions: [] }]);
 
     const result = await service.findAll(
       {
@@ -413,16 +413,18 @@ describe('TasksService', () => {
 
   it('should return task in findOne when user and task exist', async () => {
     prisma.user.findFirst.mockResolvedValue(user);
-    prisma.task.findFirst.mockResolvedValue(task);
+    prisma.task.findFirst.mockResolvedValue({ ...task, completions: [] });
 
     const result = await service.findOne('task-1', tokenPayload);
 
-    expect(prisma.task.findFirst).toHaveBeenCalledWith({
-      where: {
-        id: 'task-1',
-        userId: user.id,
-      },
-    });
+    expect(prisma.task.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          id: 'task-1',
+          userId: user.id,
+        },
+      }),
+    );
     expect(result).toEqual(task);
   });
 
