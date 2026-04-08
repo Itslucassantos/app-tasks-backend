@@ -165,6 +165,11 @@ export class UsersService {
         },
       });
 
+      if (user.avatar) {
+        const filePath = path.resolve(process.cwd(), 'files', user.avatar);
+        await fs.unlink(filePath).catch(() => null);
+      }
+
       return { message: 'User deleted successfully' };
     } catch (error) {
       if (error instanceof HttpException) {

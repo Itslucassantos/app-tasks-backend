@@ -2,15 +2,17 @@ import { HttpException, HttpStatus } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { HashingServiceProtocol } from 'src/auth/hash/hashing.service';
-import { writeFile } from 'node:fs/promises';
+import { writeFile, unlink } from 'node:fs/promises';
 
 jest.mock('node:fs/promises', () => ({
   writeFile: jest.fn(),
+  unlink: jest.fn(),
 }));
 
 describe('UsersService', () => {
   let service: UsersService;
   let writeFileMock: jest.MockedFunction<typeof writeFile>;
+  let unlinkMock: jest.MockedFunction<typeof unlink>;
   let prismaMock: {
     user: {
       create: jest.Mock;
@@ -41,6 +43,9 @@ describe('UsersService', () => {
   beforeEach(() => {
     writeFileMock = writeFile as jest.MockedFunction<typeof writeFile>;
     writeFileMock.mockReset();
+
+    unlinkMock = unlink as jest.MockedFunction<typeof unlink>;
+    unlinkMock.mockReset();
 
     prismaMock = {
       user: {
@@ -237,8 +242,11 @@ describe('UsersService', () => {
   describe('delete', () => {
     const tokenPayload = { sub: 'user-1' };
 
-    it('should delete user successfully', async () => {
-      prismaMock.user.findFirst.mockResolvedValue({ id: 'user-1' });
+    it('should delete user successfully without avatar', async () => {
+      prismaMock.user.findFirst.mockResolvedValue({
+        id: 'user-1',
+        avatar: null,
+      });
       prismaMock.user.delete.mockResolvedValue({ id: 'user-1' });
 
       const result = await service.delete('user-1', tokenPayload);
@@ -249,6 +257,23 @@ describe('UsersService', () => {
       expect(prismaMock.user.delete).toHaveBeenCalledWith({
         where: { id: 'user-1' },
       });
+      expect(unlinkMock).not.toHaveBeenCalled();
+      expect(result).toEqual({ message: 'User deleted successfully' });
+    });
+
+    it('should delete avatar file when user has avatar', async () => {
+      prismaMock.user.findFirst.mockResolvedValue({
+        id: 'user-1',
+        avatar: 'user-1.png',
+      });
+      prismaMock.user.delete.mockResolvedValue({ id: 'user-1' });
+      unlinkMock.mockResolvedValue(undefined);
+
+      const result = await service.delete('user-1', tokenPayload);
+
+      expect(unlinkMock).toHaveBeenCalledWith(
+        expect.stringContaining('user-1.png'),
+      );
       expect(result).toEqual({ message: 'User deleted successfully' });
     });
 
