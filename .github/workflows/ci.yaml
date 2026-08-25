@@ -12,7 +12,6 @@ on:
 env:
   NODE_VERSION: '24'
 
-# Define the jobs for the CI/CD pipeline
 jobs:
   lint:
     name: Lint
@@ -29,6 +28,9 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
 
       - name: Run lint
         run: npm run lint
@@ -102,7 +104,6 @@ jobs:
       - name: Run e2e tests
         run: npm run test:e2e
 
-  # CD job to build the Docker image after successful tests
   build:
     name: Build Docker Image
     runs-on: ubuntu-latest
