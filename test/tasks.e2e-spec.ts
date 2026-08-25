@@ -325,7 +325,7 @@ describe('Tasks (e2e)', () => {
       expect(res.body.id).toBe(task.id);
     });
 
-    it('should return 409 when task is already completed in the current period', async () => {
+    it('should uncomplete a task when it is already completed in the current period', async () => {
       const { token } = await createUserAndSignIn();
       const task = await createTask(token, 'Task to complete');
 
@@ -335,11 +335,14 @@ describe('Tasks (e2e)', () => {
         .send({ id: task.id })
         .expect(201);
 
-      await request(app.getHttpServer())
+      const res = await request(app.getHttpServer())
         .post('/tasks/complete')
         .set('Authorization', `Bearer ${token}`)
         .send({ id: task.id })
-        .expect(409);
+        .expect(201);
+
+      expect(res.body.id).toBe(task.id);
+      expect(res.body.completed).toBe(false);
     });
 
     it('should return 404 for a non-existent task', async () => {
