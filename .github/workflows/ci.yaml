@@ -77,6 +77,7 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     env:
+      NODE_ENV: test
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/tasks_test?schema=public
       JWT_SECRET: test_secret
       JWT_TOKEN_AUDIENCE: test_audience
@@ -102,7 +103,7 @@ jobs:
         run: npx prisma migrate deploy
 
       - name: Run e2e tests
-        run: npm run test:e2e
+        run: npx jest --config ./test/jest-e2e.json --runInBand
 
   build:
     name: Build Docker Image

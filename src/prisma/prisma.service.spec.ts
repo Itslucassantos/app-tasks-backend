@@ -7,17 +7,13 @@ jest.mock('@prisma/adapter-pg', () => ({
   PrismaPg: jest.fn().mockImplementation(() => mockAdapter),
 }));
 
-jest.mock(
-  'generated/prisma/client',
-  () => ({
-    PrismaClient: class {
-      constructor(options: unknown) {
-        mockPrismaClientConstructor(options);
-      }
-    },
-  }),
-  { virtual: true },
-);
+jest.mock('generated/prisma/client', () => ({
+  PrismaClient: class {
+    constructor(options: unknown) {
+      mockPrismaClientConstructor(options);
+    }
+  },
+}));
 
 import { PrismaService } from './prisma.service';
 import { PrismaPg } from '@prisma/adapter-pg';
