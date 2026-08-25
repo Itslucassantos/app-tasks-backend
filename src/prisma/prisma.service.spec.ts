@@ -29,29 +29,27 @@ describe('PrismaService', () => {
   });
 
   it('should throw when DATABASE_URL is not provided by ConfigService', () => {
-    const configService = {
-      get: jest.fn().mockReturnValue(undefined),
-    } as unknown as ConfigService;
+    const getConfig = jest.fn().mockReturnValue(undefined);
+    const configService = { get: getConfig } as unknown as ConfigService;
 
     expect(() => new PrismaService(configService)).toThrow(
       'DATABASE_URL is not defined',
     );
 
-    expect(configService.get).toHaveBeenCalledWith('DATABASE_URL');
+    expect(getConfig).toHaveBeenCalledWith('DATABASE_URL');
     expect(PrismaPg).not.toHaveBeenCalled();
     expect(mockPrismaClientConstructor).not.toHaveBeenCalled();
   });
 
   it('should create Prisma adapter and pass it to PrismaClient', () => {
     const connectionString = 'postgresql://user:pass@localhost:5432/tasks';
-    const configService = {
-      get: jest.fn().mockReturnValue(connectionString),
-    } as unknown as ConfigService;
+    const getConfig = jest.fn().mockReturnValue(connectionString);
+    const configService = { get: getConfig } as unknown as ConfigService;
 
     const service = new PrismaService(configService);
 
     expect(service).toBeDefined();
-    expect(configService.get).toHaveBeenCalledWith('DATABASE_URL');
+    expect(getConfig).toHaveBeenCalledWith('DATABASE_URL');
     expect(PrismaPg).toHaveBeenCalledWith({ connectionString });
     expect(mockPrismaClientConstructor).toHaveBeenCalledWith({
       adapter: mockAdapter,

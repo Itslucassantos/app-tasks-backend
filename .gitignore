@@ -37,7 +37,8 @@ lerna-debug.log*
 !.vscode/launch.json
 !.vscode/extensions.json
 
-.github/*
+# AI agent instructions (local only, not versioned)
+.github/instructions/
 
 # dotenv environment variable files
 .env

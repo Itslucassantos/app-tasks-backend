@@ -9,8 +9,11 @@ import { ConfigType } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from 'src/prisma/prisma.service';
 import jwtConfig from '../config/jwt.config';
-import { REQUEST_TOKEN_PAYLOAD_NAME } from '../common/auth.constants';
-import { Request } from 'express';
+import { PayloadTokenDto } from '../dtos/payload-token.dto';
+import {
+  REQUEST_TOKEN_PAYLOAD_NAME,
+  RequestWithTokenPayload,
+} from '../common/auth.constants';
 
 @Injectable()
 export class AuthTokenGuard implements CanActivate {
@@ -23,7 +26,9 @@ export class AuthTokenGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const request: Request = context.switchToHttp().getRequest();
+    const request: RequestWithTokenPayload = context
+      .switchToHttp()
+      .getRequest();
     const token = this.extractTokenHeader(request);
 
     if (!token) {
@@ -31,7 +36,7 @@ export class AuthTokenGuard implements CanActivate {
     }
 
     try {
-      const payload = await this.jwtService.verifyAsync(
+      const payload = await this.jwtService.verifyAsync<PayloadTokenDto>(
         token,
         this.jwtConfiguration,
       );
@@ -47,14 +52,14 @@ export class AuthTokenGuard implements CanActivate {
       if (!user) {
         throw new UnauthorizedException('Unauthorized access');
       }
-    } catch (error) {
+    } catch {
       throw new UnauthorizedException('Unauthorized access');
     }
 
     return true;
   }
 
-  extractTokenHeader(request: Request) {
+  extractTokenHeader(request: RequestWithTokenPayload) {
     const authorization = request.headers?.authorization;
 
     if (!authorization || typeof authorization !== 'string') {
