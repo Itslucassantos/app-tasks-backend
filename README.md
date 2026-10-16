@@ -16,6 +16,12 @@ Users can register, authenticate, and manage tasks with configurable recurrence 
 
 ---
 
+## Front end
+
+The front end for this project lives in a separate repository: [app-tasks-front-end](https://github.com/Itslucassantos/app-tasks-front-end)
+
+---
+
 ## Tech stack
 
 - **Node.js 24** / **TypeScript**
